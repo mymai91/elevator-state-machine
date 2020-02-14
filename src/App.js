@@ -24,6 +24,7 @@ function App() {
       states: {
         stop: {
           // current is stop the transition only can up or down
+          // entry: 'checkValue',
           on: {
             UP: 'up',
             DOWN: 'down',
@@ -56,16 +57,22 @@ function App() {
           },
         },
         moving: {
-          initial: 'reached',
+          initial: 'wait',
           states: {
             go_up: {
               activities: ['moving_up'],
+              // actions: ['moving_up_action'],
+              // exit: 'logScreenChange',
+              // entry: 'movingUpAction',
               on: {
                 REACHED: 'reached',
                 MOVING: {
                   actions: assign({
                     level: (context, event) => event.value,
                   }),
+                  // cond: {
+                  //   type: 'movingUpValidate',
+                  // }
                 },
               },
             },
@@ -84,12 +91,39 @@ function App() {
               type: 'final',
             },
           },
+          onDone: 'stop',
+          // onDone: {
+          // target: 'stop',
+          // actions: 'assignFullValue',
+          // },
         },
       },
     },
     {
+      actions: {
+        checkValue: context => {
+          console.log('checkValue context', context);
+        },
+        assignFullValue: assign((context, event) => {
+          console.log('assignFullValue event', event);
+        }),
+        movingUpAction: context => {
+          currentFloor = level;
+          console.log('checkValue context===', context);
+          console.log('current.context inside', current.context);
+          elevatorTransition = setInterval(() => {
+            currentFloor = currentFloor + 1;
+            return send({
+              type: 'MOVING',
+              value: currentFloor,
+            });
+          }, 1000);
+        },
+      },
       activities: {
-        moving_up: () => {
+        moving_up: (context, _event) => {
+          const { level } = context;
+          console.log('assignFullValue context', level);
           currentFloor = level;
           elevatorTransition = setInterval(() => {
             currentFloor = currentFloor + 1;
@@ -104,11 +138,19 @@ function App() {
           return () => clearInterval(elevatorTransition);
         },
       },
+      guards: {
+        movingUpValidate: (context, event, { cond }) => {
+          console.log('context', context);
+        },
+      },
     },
   );
 
   const [current, send] = useMachine(elevatorMachine);
   const { level, chosenLevel } = current.context;
+
+  // console.log('current.value', current.value)
+  // console.log('current.context outside', current.context);
 
   if (current.matches('moving') && level === chosenLevel) {
     send('REACHED');
@@ -148,14 +190,14 @@ function App() {
           </div>
         )}
 
-        {current.matches('moving.go_up') && (
+        {current.matches({ moving: 'go_up' }) && (
           <div>
             <p>Current level {level}</p>
             <p>Moving up to level {chosenLevel}</p>
           </div>
         )}
 
-        {current.matches('moving.reached') && (
+        {current.matches({ moving: 'reached' }) && (
           <div>
             <p>Reached level {level}</p>
           </div>
