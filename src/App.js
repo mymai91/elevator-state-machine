@@ -18,6 +18,7 @@ function App() {
       context: {
         level: 1,
         chosenLevel: 1,
+        isShowAlert: false,
       },
       states: {
         stop: {
@@ -34,8 +35,12 @@ function App() {
             PRESS_LEVEL: {
               target: 'moving.go_down',
               actions: assign({
-                level: (context, event) => event.value,
+                chosenLevel: (context, event) => +event.value,
+                // isShowAlert: (context, event) => 'isMoveDown',
               }),
+              // cond: {
+              //   type: 'isMoveDown',
+              // },
             },
           },
         },
@@ -46,7 +51,11 @@ function App() {
               target: 'moving.go_up',
               actions: assign({
                 chosenLevel: (context, event) => +event.value,
+                // isShowAlert: (context, event) => 'isMoveUp',
               }),
+              // cond: {
+              //   type: 'isMoveUp',
+              // },
             },
           },
         },
@@ -54,10 +63,10 @@ function App() {
           initial: 'finished',
           states: {
             go_up: {
-              activities: ['moving_up'],
+              activities: ['moving'],
               // actions: ['moving_up_action'],
               // exit: 'logScreenChange',
-              // entry: 'movingUpAction',
+              entry: 'reachedLevel',
               on: {
                 REACHED: 'reached',
                 MOVING: {
@@ -66,21 +75,27 @@ function App() {
                     level: (context, event) => event.value + 1,
                   }),
                   cond: {
-                    type: 'movingUpValidate',
+                    type: 'isMoveUp',
                   },
                 },
               },
             },
             go_down: {
+              activities: ['moving'],
+              entry: 'reachedLevel',
               on: {
                 REACHED: 'reached',
+                MOVING: {
+                  target: 'go_down',
+                  actions: assign({
+                    level: (_context, event) => event.value - 1,
+                  }),
+                  cond: {
+                    type: 'isMoveDown',
+                  },
+                },
               },
             },
-            // wait: {
-            //   on: {
-            //     REACHED: 'reached',
-            //   },
-            // },
             reached: {
               after: [
                 {
@@ -102,28 +117,19 @@ function App() {
         checkValue: context => {
           console.log('checkValue context', context);
         },
-        assignFullValue: assign((context, event) => {
-          // console.log('assignFullValue event', event);
-        }),
+        reachedLevel: context => {
+          const { level, chosenLevel } = context;
+          if (level === chosenLevel) {
+            send('REACHED');
+          }
+        },
         stop_moving: () => {
           console.log('stop====');
           send('STOP');
         },
-        movingUpAction: context => {
-          // currentFloor = level;
-          // console.log('checkValue context===', context);
-          // console.log('current.context inside', current.context);
-          // elevatorTransition = setInterval(() => {
-          //   currentFloor = currentFloor + 1;
-          //   return send({
-          //     type: 'MOVING',
-          //     value: currentFloor,
-          //   });
-          // }, 1000);
-        },
       },
       activities: {
-        moving_up: (context, _event) => {
+        moving: (context, _event) => {
           let { level } = context;
           setTimeout(() => {
             return send({
@@ -134,22 +140,27 @@ function App() {
         },
       },
       guards: {
-        movingUpValidate: (context, event, { cond }) => {
+        pressLevelUpValidate: context => {},
+        pressLevelDownValidate: context => {},
+        isMoveUp: (context, event, { cond }) => {
           const { level, chosenLevel } = context;
-          if (level === chosenLevel) {
-            send('REACHED');
-          }
+
           return level < chosenLevel;
+        },
+        isMoveDown: (context, event, { cond }) => {
+          const { level, chosenLevel } = context;
+
+          return chosenLevel < level;
         },
       },
     },
   );
 
   const [current, send] = useMachine(elevatorMachine);
-  const { level, chosenLevel } = current.context;
+  const { level, chosenLevel, isShowAlert } = current.context;
 
   // console.log('current.value', current.value)
-  // console.log('current.context outside', current.context);
+  console.log('current.context outside isShowAlert', isShowAlert);
 
   const handleGoUp = () => {
     send('UP');
@@ -185,10 +196,31 @@ function App() {
           </div>
         )}
 
+        {current.matches({ moving: 'up' }) && isShowAlert && (
+          <div>
+            You are at level {level}
+            <p>Can not go up to level {level}</p>
+          </div>
+        )}
+
+        {current.matches({ moving: 'down' }) && isShowAlert && (
+          <div>
+            You are at level {level}
+            <p>Can not go down to level {level}</p>
+          </div>
+        )}
+
         {current.matches({ moving: 'go_up' }) && (
           <div>
             <p>Current level {level}</p>
             <p>Moving up to level {chosenLevel}</p>
+          </div>
+        )}
+
+        {current.matches({ moving: 'go_down' }) && (
+          <div>
+            <p>Current level {level}</p>
+            <p>Moving down to level {chosenLevel}</p>
           </div>
         )}
 
@@ -200,12 +232,19 @@ function App() {
 
         {current.matches('up') && (
           <div>
-            <p>Go Up</p>
+            <p>Press Go Up</p>
             <p>Door opened</p>
             <p>Please Press Level</p>
           </div>
         )}
-        {current.matches('down') && <p>Go Down</p>}
+
+        {current.matches('down') && (
+          <div>
+            <p>Press Go Down</p>
+            <p>Door opened</p>
+            <p>Please Press Level</p>
+          </div>
+        )}
       </Card>
 
       <Card title="Elevator" style={{ width: 300, margin: '0 auto' }}>
