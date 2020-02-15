@@ -11,8 +11,6 @@ import { Button, Card, Radio, Steps } from 'antd';
 const { Step } = Steps;
 
 function App() {
-  let elevatorTransition = null;
-  let currentFloor = null;
   const elevatorMachine = Machine(
     {
       id: 'elevator',
@@ -33,8 +31,6 @@ function App() {
         down: {
           // current is down the transition only can up or stop
           on: {
-            // UP: 'up',
-            // STOP: 'stop',
             PRESS_LEVEL: {
               target: 'moving.go_down',
               actions: assign({
@@ -46,8 +42,6 @@ function App() {
         up: {
           // current is up the transition only can down or up
           on: {
-            // DOWN: 'down',
-            // STOP: 'stop',
             PRESS_LEVEL: {
               target: 'moving.go_up',
               actions: assign({
@@ -57,7 +51,7 @@ function App() {
           },
         },
         moving: {
-          initial: 'wait',
+          initial: 'finished',
           states: {
             go_up: {
               activities: ['moving_up'],
@@ -67,12 +61,13 @@ function App() {
               on: {
                 REACHED: 'reached',
                 MOVING: {
+                  target: 'go_up',
                   actions: assign({
-                    level: (context, event) => event.value,
+                    level: (context, event) => event.value + 1,
                   }),
-                  // cond: {
-                  //   type: 'movingUpValidate',
-                  // }
+                  cond: {
+                    type: 'movingUpValidate',
+                  },
                 },
               },
             },
@@ -81,21 +76,24 @@ function App() {
                 REACHED: 'reached',
               },
             },
-            wait: {
-              on: {
-                REACHED: 'reached',
-              },
-            },
+            // wait: {
+            //   on: {
+            //     REACHED: 'reached',
+            //   },
+            // },
             reached: {
-              activities: ['clearElevatorTransition'],
+              after: [
+                {
+                  delay: 1000,
+                  target: 'finished',
+                },
+              ],
+            },
+            finished: {
               type: 'final',
             },
           },
           onDone: 'stop',
-          // onDone: {
-          // target: 'stop',
-          // actions: 'assignFullValue',
-          // },
         },
       },
     },
@@ -105,42 +103,43 @@ function App() {
           console.log('checkValue context', context);
         },
         assignFullValue: assign((context, event) => {
-          console.log('assignFullValue event', event);
+          // console.log('assignFullValue event', event);
         }),
+        stop_moving: () => {
+          console.log('stop====');
+          send('STOP');
+        },
         movingUpAction: context => {
-          currentFloor = level;
-          console.log('checkValue context===', context);
-          console.log('current.context inside', current.context);
-          elevatorTransition = setInterval(() => {
-            currentFloor = currentFloor + 1;
-            return send({
-              type: 'MOVING',
-              value: currentFloor,
-            });
-          }, 1000);
+          // currentFloor = level;
+          // console.log('checkValue context===', context);
+          // console.log('current.context inside', current.context);
+          // elevatorTransition = setInterval(() => {
+          //   currentFloor = currentFloor + 1;
+          //   return send({
+          //     type: 'MOVING',
+          //     value: currentFloor,
+          //   });
+          // }, 1000);
         },
       },
       activities: {
         moving_up: (context, _event) => {
-          const { level } = context;
-          console.log('assignFullValue context', level);
-          currentFloor = level;
-          elevatorTransition = setInterval(() => {
-            currentFloor = currentFloor + 1;
+          let { level } = context;
+          setTimeout(() => {
             return send({
               type: 'MOVING',
-              value: currentFloor,
+              value: level,
             });
           }, 1000);
-        },
-        clearElevatorTransition: () => {
-          send('STOP');
-          return () => clearInterval(elevatorTransition);
         },
       },
       guards: {
         movingUpValidate: (context, event, { cond }) => {
-          console.log('context', context);
+          const { level, chosenLevel } = context;
+          if (level === chosenLevel) {
+            send('REACHED');
+          }
+          return level < chosenLevel;
         },
       },
     },
@@ -151,10 +150,6 @@ function App() {
 
   // console.log('current.value', current.value)
   // console.log('current.context outside', current.context);
-
-  if (current.matches('moving') && level === chosenLevel) {
-    send('REACHED');
-  }
 
   const handleGoUp = () => {
     send('UP');
@@ -203,7 +198,13 @@ function App() {
           </div>
         )}
 
-        {current.matches('up') && <p>Go Up</p>}
+        {current.matches('up') && (
+          <div>
+            <p>Go Up</p>
+            <p>Door opened</p>
+            <p>Please Press Level</p>
+          </div>
+        )}
         {current.matches('down') && <p>Go Down</p>}
       </Card>
 
@@ -225,21 +226,6 @@ function App() {
           </Steps>
         </div>
       </Card>
-
-      {/* <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header> */}
     </div>
   );
 }
