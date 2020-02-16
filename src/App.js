@@ -18,7 +18,7 @@ function App() {
       context: {
         level: 1,
         chosenLevel: 1,
-        isShowAlert: false,
+        isError: false,
       },
       states: {
         stop: {
@@ -36,11 +36,13 @@ function App() {
               target: 'moving.go_down',
               actions: assign({
                 chosenLevel: (context, event) => +event.value,
-                // isShowAlert: (context, event) => 'isMoveDown',
               }),
-              // cond: {
-              //   type: 'isMoveDown',
-              // },
+              cond: 'pressLevelDownValidate',
+            },
+            ERROR: {
+              actions: assign({
+                isError: (context, event) => true,
+              }),
             },
           },
         },
@@ -51,11 +53,13 @@ function App() {
               target: 'moving.go_up',
               actions: assign({
                 chosenLevel: (context, event) => +event.value,
-                // isShowAlert: (context, event) => 'isMoveUp',
               }),
-              // cond: {
-              //   type: 'isMoveUp',
-              // },
+              cond: 'pressLevelUpValidate',
+            },
+            ERROR: {
+              actions: assign({
+                isError: (context, event) => true,
+              }),
             },
           },
         },
@@ -114,18 +118,11 @@ function App() {
     },
     {
       actions: {
-        checkValue: context => {
-          console.log('checkValue context', context);
-        },
         reachedLevel: context => {
           const { level, chosenLevel } = context;
           if (level === chosenLevel) {
             send('REACHED');
           }
-        },
-        stop_moving: () => {
-          console.log('stop====');
-          send('STOP');
         },
       },
       activities: {
@@ -140,8 +137,24 @@ function App() {
         },
       },
       guards: {
-        pressLevelUpValidate: context => {},
-        pressLevelDownValidate: context => {},
+        pressLevelDownValidate: (context, event, { cond }) => {
+          console.log('event', event.value);
+          const chosenLevel = event.value;
+          const { level } = context;
+          if (chosenLevel > level) {
+            send('ERROR');
+          }
+          return chosenLevel < level;
+        },
+        pressLevelUpValidate: (context, event, { cond }) => {
+          console.log('event', event.value);
+          const chosenLevel = event.value;
+          const { level } = context;
+          if (chosenLevel < level) {
+            send('ERROR');
+          }
+          return chosenLevel > level;
+        },
         isMoveUp: (context, event, { cond }) => {
           const { level, chosenLevel } = context;
 
@@ -157,10 +170,10 @@ function App() {
   );
 
   const [current, send] = useMachine(elevatorMachine);
-  const { level, chosenLevel, isShowAlert } = current.context;
+  const { level, chosenLevel, isError } = current.context;
 
   // console.log('current.value', current.value)
-  console.log('current.context outside isShowAlert', isShowAlert);
+  console.log('current.context outside chosenLevel', chosenLevel);
 
   const handleGoUp = () => {
     send('UP');
@@ -196,20 +209,6 @@ function App() {
           </div>
         )}
 
-        {current.matches({ moving: 'up' }) && isShowAlert && (
-          <div>
-            You are at level {level}
-            <p>Can not go up to level {level}</p>
-          </div>
-        )}
-
-        {current.matches({ moving: 'down' }) && isShowAlert && (
-          <div>
-            You are at level {level}
-            <p>Can not go down to level {level}</p>
-          </div>
-        )}
-
         {current.matches({ moving: 'go_up' }) && (
           <div>
             <p>Current level {level}</p>
@@ -232,17 +231,35 @@ function App() {
 
         {current.matches('up') && (
           <div>
-            <p>Press Go Up</p>
-            <p>Door opened</p>
-            <p>Please Press Level</p>
+            {isError ? (
+              <div>
+                You are at level {level}
+                <p>Can not go up to level {chosenLevel}</p>
+              </div>
+            ) : (
+              <div>
+                <p>Press Go Up</p>
+                <p>Door opened</p>
+                <p>Please Press Level</p>
+              </div>
+            )}
           </div>
         )}
 
         {current.matches('down') && (
           <div>
-            <p>Press Go Down</p>
-            <p>Door opened</p>
-            <p>Please Press Level</p>
+            {isError ? (
+              <div>
+                You are at level {level}
+                <p>Can not go down to level {chosenLevel}</p>
+              </div>
+            ) : (
+              <div>
+                <p>Press Go Down</p>
+                <p>Door opened</p>
+                <p>Please Press Level</p>
+              </div>
+            )}
           </div>
         )}
       </Card>
