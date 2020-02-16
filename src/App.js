@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import 'antd/dist/antd.css';
 import './App.css';
 
@@ -169,6 +169,7 @@ function App() {
     },
   );
 
+  const [tmpChosenLevel, setTmpChosenLevel] = useState(null);
   const [current, send] = useMachine(elevatorMachine);
   const { level, chosenLevel, isError } = current.context;
 
@@ -184,6 +185,7 @@ function App() {
   };
 
   const handleChooseLevel = e => {
+    setTmpChosenLevel(e.target.value);
     send({
       type: 'PRESS_LEVEL',
       value: e.target.value,
@@ -234,7 +236,7 @@ function App() {
             {isError ? (
               <div>
                 You are at level {level}
-                <p>Can not go up to level {chosenLevel}</p>
+                <p>Can not go up to level {tmpChosenLevel}</p>
               </div>
             ) : (
               <div>
@@ -251,7 +253,7 @@ function App() {
             {isError ? (
               <div>
                 You are at level {level}
-                <p>Can not go down to level {chosenLevel}</p>
+                <p>Can not go down to level {tmpChosenLevel}</p>
               </div>
             ) : (
               <div>
