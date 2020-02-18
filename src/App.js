@@ -276,11 +276,11 @@ function App() {
         </Radio.Group>
         <div style={{ marginTop: 50 }}>
           <Steps direction="vertical" size="small" current={level - 1}>
-            <Step title="Level 1" description="This is a description." />
-            <Step title="Level 2" description="This is a description." />
-            <Step title="Level 3" description="This is a description." />
-            <Step title="Level 4" description="This is a description." />
-            <Step title="Level 5" description="This is a description." />
+            <Step title="Level 1" />
+            <Step title="Level 2" />
+            <Step title="Level 3" />
+            <Step title="Level 4" />
+            <Step title="Level 5" />
           </Steps>
         </div>
       </Card>
