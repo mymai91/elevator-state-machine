@@ -4,11 +4,9 @@ import './App.css';
 
 import { useMachine } from '@xstate/react';
 import { Machine, assign } from 'xstate';
-import { Button, Card, Radio, Steps } from 'antd';
+import { Icon, Card, Radio } from 'antd';
 
 // https://xstate.js.org/viz/
-
-const { Step } = Steps;
 
 function App() {
   const elevatorMachine = Machine(
@@ -18,48 +16,76 @@ function App() {
       context: {
         level: 1,
         chosenLevel: 1,
-        isError: false,
+        direction: '',
       },
       states: {
         stop: {
           // current is stop the transition only can up or down
           // entry: 'checkValue',
           on: {
-            UP: 'up',
-            DOWN: 'down',
+            UP: {
+              target: 'up',
+              actions: assign({
+                direction: (context, event) => 'up',
+              }),
+            },
+            DOWN: {
+              target: 'down',
+              actions: assign({
+                direction: (context, event) => 'down',
+              }),
+            },
           },
         },
         down: {
           // current is down the transition only can up or stop
           on: {
-            PRESS_LEVEL: {
-              target: 'moving.go_down',
-              actions: assign({
-                chosenLevel: (context, event) => +event.value,
-              }),
-              cond: 'pressLevelDownValidate',
-            },
-            ERROR: {
-              actions: assign({
-                isError: (context, event) => true,
-              }),
-            },
+            PRESS_LEVEL: [
+              {
+                target: 'moving.go_down',
+                cond: 'pressLevelDownValidate',
+                actions: assign({
+                  chosenLevel: (context, event) => +event.value,
+                }),
+              },
+              { target: 'error.go_down' },
+            ],
           },
         },
         up: {
           // current is up the transition only can down or up
           on: {
-            PRESS_LEVEL: {
-              target: 'moving.go_up',
-              actions: assign({
-                chosenLevel: (context, event) => +event.value,
-              }),
-              cond: 'pressLevelUpValidate',
+            PRESS_LEVEL: [
+              {
+                target: 'moving.go_up',
+                cond: 'pressLevelUpValidate',
+                actions: assign({
+                  chosenLevel: (context, event) => +event.value,
+                }),
+              },
+              { target: 'error.go_up' },
+            ],
+          },
+        },
+        error: {
+          states: {
+            go_up: {
+              activities: ['error_moving_up'],
+              // after: [
+              //   {
+              //     delay: 1000,
+              //     target: 'go_up',
+              //   },
+              // ],
             },
-            ERROR: {
-              actions: assign({
-                isError: (context, event) => true,
-              }),
+            go_down: {
+              activities: ['error_moving_down'],
+              // after: [
+              //   {
+              //     delay: 1000,
+              //     target: 'go_down',
+              //   },
+              // ],
             },
           },
         },
@@ -126,6 +152,14 @@ function App() {
         },
       },
       activities: {
+        error_moving_up: (context, _event) => {
+          console.log('error_moving_up');
+          return send('UP');
+        },
+        error_moving_down: (context, _event) => {
+          console.log('error_moving_down');
+          return send('DOWN');
+        },
         moving: (context, _event) => {
           let { level } = context;
           setTimeout(() => {
@@ -138,21 +172,15 @@ function App() {
       },
       guards: {
         pressLevelDownValidate: (context, event, { cond }) => {
-          console.log('event', event.value);
           const chosenLevel = event.value;
           const { level } = context;
-          if (chosenLevel > level) {
-            send('ERROR');
-          }
+
           return chosenLevel < level;
         },
         pressLevelUpValidate: (context, event, { cond }) => {
-          console.log('event', event.value);
           const chosenLevel = event.value;
           const { level } = context;
-          if (chosenLevel < level) {
-            send('ERROR');
-          }
+
           return chosenLevel > level;
         },
         isMoveUp: (context, event, { cond }) => {
@@ -171,17 +199,17 @@ function App() {
 
   const [tmpChosenLevel, setTmpChosenLevel] = useState(null);
   const [current, send] = useMachine(elevatorMachine);
-  const { level, chosenLevel, isError } = current.context;
+  const { level, chosenLevel, direction } = current.context;
 
   // console.log('current.value', current.value)
-  console.log('current.context outside chosenLevel', chosenLevel);
+  console.log('current.context outside direction', current.context);
 
-  const handleGoUp = () => {
-    send('UP');
-  };
-
-  const handleGoDown = () => {
-    send('DOWN');
+  const handlePressUpDown = e => {
+    if (e.target.value === 'up') {
+      send('UP');
+    } else {
+      send('DOWN');
+    }
   };
 
   const handleChooseLevel = e => {
@@ -192,15 +220,27 @@ function App() {
     });
   };
 
+  const radioStyle = {
+    display: 'block',
+    height: '30px',
+    lineHeight: '30px',
+  };
+
   return (
     <div className="App">
       <div style={{ margin: 50 }}>
-        <Button type="primary" onClick={() => handleGoUp()}>
-          Up
-        </Button>
-        <Button type="danger" onClick={() => handleGoDown()}>
-          Down
-        </Button>
+        <Radio.Group
+          value={direction}
+          onChange={e => handlePressUpDown(e)}
+          className="pressUpDownBtn"
+        >
+          <Radio.Button className="radioOpenDoorStyle" value="up">
+            <Icon type="up-circle" style={{ fontSize: '30px', color: '#08c' }} />
+          </Radio.Button>
+          <Radio.Button className="radioOpenDoorStyle" value="down">
+            <Icon type="down-circle" style={{ fontSize: '30px', color: '#08c' }} />
+          </Radio.Button>
+        </Radio.Group>
       </div>
 
       <Card title="Door" style={{ width: 300, margin: '0 auto', marginBottom: 50 }}>
@@ -230,58 +270,61 @@ function App() {
             <p>Reached level {level}</p>
           </div>
         )}
-
         {current.matches('up') && (
           <div>
-            {isError ? (
-              <div>
-                You are at level {level}
-                <p>Can not go up to level {tmpChosenLevel}</p>
-              </div>
-            ) : (
-              <div>
-                <p>Press Go Up</p>
-                <p>Door opened</p>
-                <p>Please Press Level</p>
-              </div>
-            )}
+            <p>Press Go Up</p>
+            <p>Door opened</p>
+            <p>Please Press Level</p>
           </div>
         )}
 
         {current.matches('down') && (
           <div>
-            {isError ? (
-              <div>
-                You are at level {level}
-                <p>Can not go down to level {tmpChosenLevel}</p>
-              </div>
-            ) : (
-              <div>
-                <p>Press Go Down</p>
-                <p>Door opened</p>
-                <p>Please Press Level</p>
-              </div>
-            )}
+            <p>Press Go Down</p>
+            <p>Door opened</p>
+            <p>Please Press Level</p>
+          </div>
+        )}
+
+        {current.matches('error.go_up') && (
+          <div>
+            You are at level {level}
+            <p>Can not go up to level {tmpChosenLevel}</p>
+          </div>
+        )}
+
+        {current.matches('error.go_down') && (
+          <div>
+            You are at level {level}
+            <p>Can not go down to level {tmpChosenLevel}</p>
           </div>
         )}
       </Card>
 
       <Card title="Elevator" style={{ width: 300, margin: '0 auto' }}>
-        <Radio.Group defaultValue="1" buttonStyle="solid" onChange={e => handleChooseLevel(e)}>
-          <Radio.Button value="1">1</Radio.Button>
-          <Radio.Button value="2">2</Radio.Button>
-          <Radio.Button value="3">3</Radio.Button>
-          <Radio.Button value="4">4</Radio.Button>
-          <Radio.Button value="5">5</Radio.Button>
-        </Radio.Group>
-        <div style={{ marginTop: 50 }}>
-          <Steps direction="vertical" size="small" current={level - 1}>
-            <Step title="Level 1" />
-            <Step title="Level 2" />
-            <Step title="Level 3" />
-            <Step title="Level 4" />
-            <Step title="Level 5" />
-          </Steps>
+        <div>
+          <div style={{ marginTop: 50 }}>
+            <p style={{ fontSize: 70 }}>{level}</p>
+          </div>
+          <div style={{ width: 100 }}>
+            <Radio.Group defaultValue="1" buttonStyle="solid" onChange={e => handleChooseLevel(e)}>
+              <Radio.Button style={radioStyle} value="1">
+                1
+              </Radio.Button>
+              <Radio.Button style={radioStyle} value="2">
+                2
+              </Radio.Button>
+              <Radio.Button style={radioStyle} value="3">
+                3
+              </Radio.Button>
+              <Radio.Button style={radioStyle} value="4">
+                4
+              </Radio.Button>
+              <Radio.Button style={radioStyle} value="5">
+                5
+              </Radio.Button>
+            </Radio.Group>
+          </div>
         </div>
       </Card>
     </div>
