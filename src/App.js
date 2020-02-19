@@ -3,7 +3,7 @@ import 'antd/dist/antd.css';
 import './App.css';
 
 import { useMachine } from '@xstate/react';
-import { Machine, assign } from 'xstate';
+import { Machine, assign, sendParent } from 'xstate';
 import { Icon, Card, Radio } from 'antd';
 
 // https://xstate.js.org/viz/
@@ -39,6 +39,7 @@ function App() {
         },
         down: {
           // current is down the transition only can up or stop
+          id: 'elevator_down',
           on: {
             PRESS_LEVEL: [
               {
@@ -48,12 +49,18 @@ function App() {
                   chosenLevel: (context, event) => +event.value,
                 }),
               },
-              { target: 'error.go_down' },
+              {
+                target: 'error.go_down',
+                actions: assign({
+                  chosenLevel: (context, event) => +event.value,
+                }),
+              },
             ],
           },
         },
         up: {
           // current is up the transition only can down or up
+          id: 'elevator_up',
           on: {
             PRESS_LEVEL: [
               {
@@ -63,33 +70,39 @@ function App() {
                   chosenLevel: (context, event) => +event.value,
                 }),
               },
-              { target: 'error.go_up' },
+              {
+                target: 'error.go_up',
+                actions: assign({
+                  chosenLevel: (context, event) => +event.value,
+                }),
+              },
             ],
           },
         },
         error: {
           states: {
             go_up: {
-              activities: ['error_moving_up'],
-              // after: [
-              //   {
-              //     delay: 1000,
-              //     target: 'go_up',
-              //   },
-              // ],
+              entry: 'errorGoUp',
+
+              on: {
+                REACHED: {
+                  target: '#elevator_moving.go_down',
+                },
+              },
             },
             go_down: {
-              activities: ['error_moving_down'],
-              // after: [
-              //   {
-              //     delay: 1000,
-              //     target: 'go_down',
-              //   },
-              // ],
+              entry: 'errorGoDown',
+
+              on: {
+                REACHED: {
+                  target: '#elevator_moving.go_up',
+                },
+              },
             },
           },
         },
         moving: {
+          id: 'elevator_moving',
           initial: 'finished',
           states: {
             go_up: {
@@ -150,17 +163,18 @@ function App() {
             send('REACHED');
           }
         },
+        errorGoUp: context => {
+          console.log('errorGoUp');
+          send('REACHED');
+        },
+        errorGoDown: context => {
+          console.log('errorGoDown');
+          send('REACHED');
+        },
       },
       activities: {
-        error_moving_up: (context, _event) => {
-          console.log('error_moving_up');
-          return send('UP');
-        },
-        error_moving_down: (context, _event) => {
-          console.log('error_moving_down');
-          return send('DOWN');
-        },
         moving: (context, _event) => {
+          console.log('MOVING');
           let { level } = context;
           setTimeout(() => {
             return send({
@@ -253,6 +267,7 @@ function App() {
 
         {current.matches({ moving: 'go_up' }) && (
           <div>
+            <h3>Going Up</h3>
             <p>Current level {level}</p>
             <p>Moving up to level {chosenLevel}</p>
           </div>
@@ -260,6 +275,7 @@ function App() {
 
         {current.matches({ moving: 'go_down' }) && (
           <div>
+            <h3>Going Down</h3>
             <p>Current level {level}</p>
             <p>Moving down to level {chosenLevel}</p>
           </div>
@@ -288,6 +304,7 @@ function App() {
 
         {current.matches('error.go_up') && (
           <div>
+            <h2>ERROR</h2>
             You are at level {level}
             <p>Can not go up to level {tmpChosenLevel}</p>
           </div>
@@ -295,6 +312,7 @@ function App() {
 
         {current.matches('error.go_down') && (
           <div>
+            <h2>ERROR</h2>
             You are at level {level}
             <p>Can not go down to level {tmpChosenLevel}</p>
           </div>
