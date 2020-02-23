@@ -3,8 +3,8 @@ import 'antd/dist/antd.css';
 import './App.css';
 
 import { useMachine } from '@xstate/react';
-import { Machine, assign, sendParent } from 'xstate';
-import { Icon, Card, Radio } from 'antd';
+import { Machine, assign } from 'xstate';
+import { Icon, Card, Radio, Row, Col, Layout } from 'antd';
 
 // https://xstate.js.org/viz/
 
@@ -17,22 +17,27 @@ function App() {
         level: 1,
         chosenLevel: 1,
         direction: '',
+        isDisablePressLevelBtn: true,
+        doorStatus: 'close',
       },
       states: {
         stop: {
           // current is stop the transition only can up or down
-          // entry: 'checkValue',
           on: {
             UP: {
               target: 'up',
               actions: assign({
                 direction: (context, event) => 'up',
+                isDisablePressLevelBtn: false,
+                doorStatus: 'open',
               }),
             },
             DOWN: {
               target: 'down',
               actions: assign({
                 direction: (context, event) => 'down',
+                isDisablePressLevelBtn: false,
+                doorStatus: 'open',
               }),
             },
           },
@@ -47,12 +52,14 @@ function App() {
                 cond: 'pressLevelDownValidate',
                 actions: assign({
                   chosenLevel: (context, event) => +event.value,
+                  doorStatus: 'close',
                 }),
               },
               {
                 target: 'error.go_down',
                 actions: assign({
                   chosenLevel: (context, event) => +event.value,
+                  doorStatus: 'close',
                 }),
               },
             ],
@@ -68,12 +75,14 @@ function App() {
                 cond: 'pressLevelUpValidate',
                 actions: assign({
                   chosenLevel: (context, event) => +event.value,
+                  doorStatus: 'close',
                 }),
               },
               {
                 target: 'error.go_up',
                 actions: assign({
                   chosenLevel: (context, event) => +event.value,
+                  doorStatus: 'close',
                 }),
               },
             ],
@@ -82,20 +91,26 @@ function App() {
         error: {
           states: {
             go_up: {
-              entry: 'errorGoUp',
+              entry: 'errorPressDirection',
 
               on: {
                 REACHED: {
                   target: '#elevator_moving.go_down',
+                  actions: assign({
+                    direction: (context, event) => 'down',
+                  }),
                 },
               },
             },
             go_down: {
-              entry: 'errorGoDown',
+              entry: 'errorPressDirection',
 
               on: {
                 REACHED: {
                   target: '#elevator_moving.go_up',
+                  actions: assign({
+                    direction: (context, event) => 'up',
+                  }),
                 },
               },
             },
@@ -107,8 +122,6 @@ function App() {
           states: {
             go_up: {
               activities: ['moving'],
-              // actions: ['moving_up_action'],
-              // exit: 'logScreenChange',
               entry: 'reachedLevel',
               on: {
                 REACHED: 'reached',
@@ -142,6 +155,11 @@ function App() {
             reached: {
               after: [
                 {
+                  actions: assign({
+                    doorStatus: 'open',
+                  }),
+                },
+                {
                   delay: 1000,
                   target: 'finished',
                 },
@@ -151,7 +169,14 @@ function App() {
               type: 'final',
             },
           },
-          onDone: 'stop',
+          onDone: {
+            target: 'stop',
+            actions: assign({
+              direction: (_context, _event) => '',
+              isDisablePressLevelBtn: true,
+              doorStatus: 'close',
+            }),
+          },
         },
       },
     },
@@ -163,13 +188,10 @@ function App() {
             send('REACHED');
           }
         },
-        errorGoUp: context => {
-          console.log('errorGoUp');
-          send('REACHED');
-        },
-        errorGoDown: context => {
-          console.log('errorGoDown');
-          send('REACHED');
+        errorPressDirection: context => {
+          setTimeout(() => {
+            return send('REACHED');
+          }, 1000);
         },
       },
       activities: {
@@ -213,7 +235,7 @@ function App() {
 
   const [tmpChosenLevel, setTmpChosenLevel] = useState(null);
   const [current, send] = useMachine(elevatorMachine);
-  const { level, chosenLevel, direction } = current.context;
+  const { level, chosenLevel, direction, isDisablePressLevelBtn, doorStatus } = current.context;
 
   // console.log('current.value', current.value)
   console.log('current.context outside direction', current.context);
@@ -242,109 +264,155 @@ function App() {
 
   return (
     <div className="App">
-      <div style={{ margin: 50 }}>
-        <Radio.Group
-          value={direction}
-          onChange={e => handlePressUpDown(e)}
-          className="pressUpDownBtn"
-        >
-          <Radio.Button className="radioOpenDoorStyle" value="up">
-            <Icon type="up-circle" style={{ fontSize: '30px', color: '#08c' }} />
-          </Radio.Button>
-          <Radio.Button className="radioOpenDoorStyle" value="down">
-            <Icon type="down-circle" style={{ fontSize: '30px', color: '#08c' }} />
-          </Radio.Button>
-        </Radio.Group>
-      </div>
+      <Row type="flex" justify="center" align="middle">
+        <Col span={8} offset={2}>
+          <div className="notification">
+            <h2 style={{ color: '#333', fontSize: 32 }}>Elevator</h2>
+            <div>
+              {current.matches('stop') && (
+                <div>
+                  <p>You are at level {level}</p>
+                  <p>Door Close</p>
+                </div>
+              )}
 
-      <Card title="Door" style={{ width: 300, margin: '0 auto', marginBottom: 50 }}>
-        {current.matches('stop') && (
-          <div>
-            You are at level {level}
-            <p>Door Close</p>
-          </div>
-        )}
+              {current.matches({ moving: 'go_up' }) && (
+                <div>
+                  <h3>Going Up</h3>
+                  <p>Current level {level}</p>
+                  <p>Moving up to level {chosenLevel}</p>
+                </div>
+              )}
 
-        {current.matches({ moving: 'go_up' }) && (
-          <div>
-            <h3>Going Up</h3>
-            <p>Current level {level}</p>
-            <p>Moving up to level {chosenLevel}</p>
-          </div>
-        )}
+              {current.matches({ moving: 'go_down' }) && (
+                <div>
+                  <h3>Going Down</h3>
+                  <p>Current level {level}</p>
+                  <p>Moving down to level {chosenLevel}</p>
+                </div>
+              )}
 
-        {current.matches({ moving: 'go_down' }) && (
-          <div>
-            <h3>Going Down</h3>
-            <p>Current level {level}</p>
-            <p>Moving down to level {chosenLevel}</p>
-          </div>
-        )}
+              {current.matches({ moving: 'reached' }) && (
+                <div>
+                  <p>Reached level {level}</p>
+                </div>
+              )}
+              {current.matches('up') && (
+                <div>
+                  <p>Press Go Up</p>
+                  <p>Door opened</p>
+                  <p>Please Press Level</p>
+                </div>
+              )}
 
-        {current.matches({ moving: 'reached' }) && (
-          <div>
-            <p>Reached level {level}</p>
-          </div>
-        )}
-        {current.matches('up') && (
-          <div>
-            <p>Press Go Up</p>
-            <p>Door opened</p>
-            <p>Please Press Level</p>
-          </div>
-        )}
+              {current.matches('down') && (
+                <div>
+                  <p>Press Go Down</p>
+                  <p>Door opened</p>
+                  <p>Please Press Level</p>
+                </div>
+              )}
 
-        {current.matches('down') && (
-          <div>
-            <p>Press Go Down</p>
-            <p>Door opened</p>
-            <p>Please Press Level</p>
-          </div>
-        )}
+              {current.matches('error.go_up') && (
+                <div>
+                  <h2>ERROR</h2>
+                  You are at level {level}
+                  <p>Can not go up to level {tmpChosenLevel}</p>
+                </div>
+              )}
 
-        {current.matches('error.go_up') && (
-          <div>
-            <h2>ERROR</h2>
-            You are at level {level}
-            <p>Can not go up to level {tmpChosenLevel}</p>
+              {current.matches('error.go_down') && (
+                <div>
+                  <h2>ERROR</h2>
+                  You are at level {level}
+                  <p>Can not go down to level {tmpChosenLevel}</p>
+                </div>
+              )}
+            </div>
           </div>
-        )}
-
-        {current.matches('error.go_down') && (
-          <div>
-            <h2>ERROR</h2>
-            You are at level {level}
-            <p>Can not go down to level {tmpChosenLevel}</p>
-          </div>
-        )}
-      </Card>
-
-      <Card title="Elevator" style={{ width: 300, margin: '0 auto' }}>
-        <div>
-          <div style={{ marginTop: 50 }}>
-            <p style={{ fontSize: 70 }}>{level}</p>
-          </div>
-          <div style={{ width: 100 }}>
-            <Radio.Group defaultValue="1" buttonStyle="solid" onChange={e => handleChooseLevel(e)}>
-              <Radio.Button style={radioStyle} value="1">
-                1
+        </Col>
+      </Row>
+      <Row type="flex" justify="center" align="middle">
+        <Col span={2}>
+          <div style={{ margin: 50 }}>
+            <Radio.Group
+              value={direction}
+              onChange={e => handlePressUpDown(e)}
+              className="pressUpDownBtn"
+            >
+              <Radio.Button className="radioOpenDoorStyle" value="up">
+                <Icon type="up-circle" style={{ fontSize: '30px', color: '#08c' }} />
               </Radio.Button>
-              <Radio.Button style={radioStyle} value="2">
-                2
-              </Radio.Button>
-              <Radio.Button style={radioStyle} value="3">
-                3
-              </Radio.Button>
-              <Radio.Button style={radioStyle} value="4">
-                4
-              </Radio.Button>
-              <Radio.Button style={radioStyle} value="5">
-                5
+              <Radio.Button className="radioOpenDoorStyle" value="down">
+                <Icon type="down-circle" style={{ fontSize: '30px', color: '#08c' }} />
               </Radio.Button>
             </Radio.Group>
           </div>
-        </div>
-      </Card>
+        </Col>
+        <Col span={8}>
+          <div className="elevator">
+            <div className="">
+              <Row type="flex" justify="space-around" align="middle">
+                <Col span={12}>
+                  <div>
+                    <div className="direction-wrapper">
+                      {current.matches({ moving: 'go_down' }) && (
+                        <div className="direction-container">
+                          <div className="chevron chevron-down"></div>
+                          <div className="chevron chevron-down"></div>
+                          <div className="chevron chevron-down"></div>
+                        </div>
+                      )}
+
+                      {current.matches({ moving: 'go_up' }) && (
+                        <div className="direction-container">
+                          <div className="chevron chevron-up"></div>
+                          <div className="chevron chevron-up"></div>
+                          <div className="chevron chevron-up"></div>
+                        </div>
+                      )}
+                    </div>
+                    <p style={{ fontSize: 60, margin: 0 }}>{level}</p>
+                  </div>
+                </Col>
+              </Row>
+            </div>
+            <div className="stage">
+              <div className="stage-content" style={{ height: 500 }}>
+                <Radio.Group
+                  className="state-group-button"
+                  defaultValue="1"
+                  buttonStyle="solid"
+                  onChange={e => handleChooseLevel(e)}
+                  disabled={isDisablePressLevelBtn}
+                >
+                  <Radio.Button style={radioStyle} value="5">
+                    5
+                  </Radio.Button>
+                  <Radio.Button style={radioStyle} value="4">
+                    4
+                  </Radio.Button>
+                  <Radio.Button style={radioStyle} value="3">
+                    3
+                  </Radio.Button>
+                  <Radio.Button style={radioStyle} value="2">
+                    2
+                  </Radio.Button>
+                  <Radio.Button style={radioStyle} value="1">
+                    1
+                  </Radio.Button>
+                </Radio.Group>
+              </div>
+              <label className={`${doorStatus} curtain-container`}>
+                <div className="curtain-panel">
+                  <div className={`${doorStatus} left-curtain curtain`}></div>
+                  <div className={`${doorStatus} right-curtain curtain`}></div>
+                </div>
+              </label>
+            </div>
+          </div>
+        </Col>
+      </Row>
     </div>
   );
 }
