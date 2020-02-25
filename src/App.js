@@ -3,8 +3,8 @@ import 'antd/dist/antd.css';
 import './App.css';
 
 import { useMachine } from '@xstate/react';
-import { Machine, assign } from 'xstate';
-import { Icon, Card, Radio, Row, Col, Layout } from 'antd';
+import { Machine, assign, actions } from 'xstate';
+import { Icon, Radio, Row, Col } from 'antd';
 
 // https://xstate.js.org/viz/
 
@@ -153,17 +153,12 @@ function App() {
               },
             },
             reached: {
-              after: [
-                {
-                  actions: assign({
-                    doorStatus: 'open',
-                  }),
-                },
-                {
-                  delay: 1000,
-                  target: 'finished',
-                },
-              ],
+              entry: assign({
+                doorStatus: 'open',
+              }),
+              after: {
+                1000: 'finished',
+              },
             },
             finished: {
               type: 'final',
@@ -188,15 +183,22 @@ function App() {
             send('REACHED');
           }
         },
-        errorPressDirection: context => {
+        errorPressDirection: _context => {
+          // working
           setTimeout(() => {
             return send('REACHED');
           }, 1000);
+
+          // working
+          //send('REACHED')
+
+          // Not working
+          // send('REACHED', { delay: 1000 });
         },
       },
       activities: {
         moving: (context, _event) => {
-          console.log('MOVING');
+          console.log('MOVING===');
           let { level } = context;
           setTimeout(() => {
             return send({
@@ -238,7 +240,7 @@ function App() {
   const { level, chosenLevel, direction, isDisablePressLevelBtn, doorStatus } = current.context;
 
   // console.log('current.value', current.value)
-  console.log('current.context outside direction', current.context);
+  // console.log('current.context outside direction', current.context);
 
   const handlePressUpDown = e => {
     if (e.target.value === 'up') {
